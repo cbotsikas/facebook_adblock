@@ -9,6 +9,7 @@ const blacklist = [
   ".uiStreamSponsoredLink",
   'a[data-hovercard][href*="hc_ref=ADS"]',
   'a[role="button"][rel~="noopener"][data-lynx-mode="async"]',
+  'div[id^=hyperfeed_story_id] div.userContentWrapper > div:first-child > div:first-child > div:nth-child(2n).uiPopover', // If it has an extra div for "Suggested for you" label on the top
 ];
 
 const sponsoredTexts = [
