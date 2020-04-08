@@ -48,6 +48,7 @@ const possibleSponsoredTextQueries = [
   'div[data-testid*="label"] > :first-child',
   'div[id^="fbfeed_sub_header_id"] > :nth-child(3)',
   'a[role="button"][aria-labelledby]',
+  'a[role="link"] > span[aria-labelledby]',
 ];
 
 function isHidden(e) {
@@ -64,18 +65,18 @@ function isHidden(e) {
 }
 
 function getTextFromElement(e) {
-  return e.innerText === "" ? e.dataset.content : e.innerText;
+  return (e.innerText === "" ? e.dataset.content : e.innerText) || "";
 }
 
 function getVisibleText(e) {
   if (isHidden(e)) {
     // stop if this is hidden
-    return [];
+    return "";
   }
   const children = e.querySelectorAll(":scope > *");
   if (children.length !== 0) {
     // more level => recursive
-    return Array.prototype.slice.call(children).map(getVisibleText).flat();
+    return (e.dataset.content || "") + Array.prototype.slice.call(children).map(getVisibleText).flat().join("");
   }
   // we have found the real text
   return getTextFromElement(e);
@@ -112,7 +113,7 @@ function hideIfSponsored(e) {
   return possibleSponsoredTextQueries.some((query) => {
     const result = e.querySelectorAll(query);
     return [...result].some(t => {
-      const visibleText = getVisibleText(t).join("");
+      const visibleText = getVisibleText(t);
       if (
         sponsoredTexts.some(
           (sponsoredText) => visibleText.indexOf(sponsoredText) !== -1
@@ -168,9 +169,38 @@ function onPageChange() {
     });
     console.info("Monitoring", [feed]);
   }
+
+  //FB5 design
+  feed = document.querySelector("div[role=feed]:not([data-adblock-monitored])");
+  if (feed !== null) {
+    feed
+      .querySelectorAll('div[data-pagelet^="FeedUnit_"]')
+      .forEach(hideIfSponsored);
+    feedObserver = new MutationObserver((mutations) => {
+      mutations.forEach((mutation) => {
+        if (mutation.target.dataset && mutation.target.dataset.pagelet && mutation.target.dataset.pagelet.startsWith("FeedUnit_")) {
+          hideIfSponsored(mutation.target);
+        }
+        if (mutation.addedNodes) {
+          mutation.addedNodes.forEach((node) => {
+            if (node.dataset && node.dataset.pagelet && node.dataset.pagelet.startsWith("FeedUnit_")) {
+              hideIfSponsored(node);
+            }
+          });
+        }
+      });
+    });
+    feedObserver.observe(feed, {
+      childList: true,
+      subtree: true,
+    });
+    feed.dataset.adblockMonitored = true;
+    console.info("Monitoring feed updates", [feed]);
+    return;
+  }
 }
 
-let fbContent = document.getElementsByClassName("fb_content")[0];
+let fbContent = document.querySelector("div.fb_content, div[data-pagelet=root]");
 const fbObserver = new MutationObserver(onPageChange);
 
 // if we can't find ".fb_content", then it must be a mobile website.
